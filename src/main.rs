@@ -28,24 +28,28 @@ fn check_range(merged: &String, selected: &str) -> bool {
     }
 }
 //creates a vector of everything in the row
- fn get_row(row: u32, sheet: &Worksheet) -> Vec<String> {    
+ fn get_row(row: u32, sheet: &Worksheet, filter: &str) -> Vec<String> {    
     let mut row_values = Vec::new();
     let merged = sheet.get_merge_cells();
     let cell_row = row.to_string();
-    
+    let mut is_filtered = false;
     for range in merged{
-        let co
-    let mut range_value = range.get_range();
+       let mut range_value = range.get_range();
     if check_range(&range_value, &cell_row) == true {
         let mut merge_coord = sheet.map_merged_cell(&*range_value);
         let mut value = sheet.get_value(merge_coord);
+        if value.to_string() == filter{
         row_values.push(value.to_string());
+        is_filtered = true;
+        }
     }
    }
     let cell = sheet.get_collection_by_row(&row);
     for item in cell {
         let value = item.get_cell_value().get_value();
+        if is_filtered == true {
         row_values.push(value.to_string());
+        }
     }
     row_values
 }
@@ -71,10 +75,11 @@ fn main() {
     let mut book = umya_spreadsheet::reader::xlsx::read(path).unwrap();
     let sheet  = book.get_sheet_by_name("SMART Data").unwrap(); 
     let keyword = "Wear_Leveling_Count";
+    let filter = "1.92 TB";
     let coords = get_keyword_coord(&keyword, &sheet);
     let mut wtr = Writer::from_path("output.csv").unwrap();
     for cord in coords {
-        let row = get_row(cord.row, &sheet);
+        let row = get_row(cord.row, &sheet, &filter);
         wtr.write_record(&row);
         println!("Row is:");
         for cell in row{
