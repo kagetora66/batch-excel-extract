@@ -6,10 +6,37 @@ use std::io;
 use std::path::{Path, PathBuf};
 use regex::Regex;
 use umya_spreadsheet::Worksheet;
+use walkdir::WalkDir;
+use anyhow::{Context, Result};
 
 struct coordinates {
     row: u32,
     column: u32,
+}
+
+fn select_folder() -> Option<PathBuf> {
+    rfd::FileDialog::new()
+    .set_title("Select a folder containing XLSX files")
+    .pick_folder()
+}
+
+fn find_xlsx_files(folder: &Path) -> Result<Vec<PathBuf>> {
+    let mut xlsx_files = Vec::new();
+
+    for entry in WalkDir::new(folder) {
+        let entry = entry?;
+        let path = entry.path();
+
+        if path.is_file() {
+            if let Some(ext) = path.extension() {
+                if ext == "xlsx" {
+                    xlsx_files.push(path.to_path_buf());
+                }
+            }
+        }
+    }
+
+    Ok(xlsx_files)
 }
 
 //checks if our row is in the same range as merged cells
@@ -38,7 +65,7 @@ fn check_range(merged: &String, selected: &str) -> bool {
     if check_range(&range_value, &cell_row) == true {
         let mut merge_coord = sheet.map_merged_cell(&*range_value);
         let mut value = sheet.get_value(merge_coord);
-        if value.to_string() == filter{
+        if value.to_string() == filter && filter != "" {
         row_values.push(value.to_string());
         is_filtered = true;
         }
@@ -69,23 +96,58 @@ fn get_keyword_coord(query: &str, sheet: &Worksheet) -> Vec<coordinates>
     }
     coords
 }
+fn prompt_input(prompt: &str) -> io::Result<String> {
+    let mut input = String::new();
+    print!("{}", prompt);
+    io::stdout().flush()?; // Ensure prompt appears immediately
+    io::stdin().read_line(&mut input)?;
+    Ok(input.trim().to_string())
+}
 
 fn main() {
-    let path = std::path::Path::new("./smarts.xlsx");
-    let mut book = umya_spreadsheet::reader::xlsx::read(path).unwrap();
-    let sheet  = book.get_sheet_by_name("SMART Data").unwrap(); 
-    let keyword = "Wear_Leveling_Count";
-    let filter = "1.92 TB";
-    let coords = get_keyword_coord(&keyword, &sheet);
-    let mut wtr = Writer::from_path("output.csv").unwrap();
-    for cord in coords {
-        let row = get_row(cord.row, &sheet, &filter);
-        wtr.write_record(&row);
-        println!("Row is:");
-        for cell in row{
-            println!("cell is: {}", cell);
-        }
+    //let path = std::path::Path::new("./smarts.xlsx");
+    //let mut book = umya_spreadsheet::reader::xlsx::read(path).unwrap();
+    //let sheet  = book.get_sheet_by_name("SMART Data").unwrap();
+    println!("Please select a folder containing the excel files");
+    let folder = select_folder().ok_or(anyhow::anyhow!("No folder selected")).unwrap();
+//    println!("Searching for xlsx files in: {}", folder.display());
 
-}
-wtr.flush();
+    let xlsx_files = find_xlsx_files(&folder).unwrap();
+
+    println!("Found xlsx files");
+    // Get the query
+    let keyword = prompt_input("Enter your search query: ").expect("Failed to read query");
+
+    // Get optional filter
+    let filter = match prompt_input("Filter rows/columns by keyword? (press Enter if no): ") {
+        Ok(s) if !s.trim().is_empty() => s.trim().to_string(),
+        _ => String::new(), // Empty string if no filter
+    };
+
+    //let keyword = "Wear_Leveling_Count";
+    //let filter = "1.92 TB";
+    let mut wtr = Writer::from_path("output.csv").unwrap();
+    for file in xlsx_files {
+        let book = umya_spreadsheet::reader::xlsx::read(&file).unwrap();
+        let sheet = book.get_sheet_by_name("SMART Data").unwrap();
+        let coords = get_keyword_coord(&keyword, &sheet);
+        let filename = &file.file_name().unwrap().to_str().unwrap();
+        let mut empty_row = Vec::new();
+        for cord in coords {
+            let mut row = get_row(cord.row, &sheet, &filter);
+            if row.len() != 0 {
+                row.insert(0, filename.to_string()); // Add filename as first column
+                empty_row = vec!["".to_string(); row.len()];
+                //empty_row.insert(0, filename.to_string());
+            }
+            wtr.write_record(&row);
+            println!("Reading from {}", &filename);
+        }
+        wtr.write_record(&empty_row);
+
+        wtr.flush();
+
+
+    }
+
 }
