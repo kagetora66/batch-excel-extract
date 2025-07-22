@@ -8,6 +8,8 @@ use regex::Regex;
 use umya_spreadsheet::Worksheet;
 use walkdir::WalkDir;
 use anyhow::{Context, Result};
+use std::time::Duration;
+use std::thread;
 
 struct coordinates {
     row: u32,
@@ -60,6 +62,7 @@ fn check_range(merged: &String, selected: &str) -> bool {
     let merged = sheet.get_merge_cells();
     let cell_row = row.to_string();
     let mut is_filtered = false;
+    //if our filter word is merged
     for range in merged{
        let mut range_value = range.get_range();
     if check_range(&range_value, &cell_row) == true {
@@ -69,17 +72,27 @@ fn check_range(merged: &String, selected: &str) -> bool {
         row_values.push(value.to_string());
         is_filtered = true;
         }
+        else if filter == "" {
+            row_values.push(value.to_string());
+        }
     }
    }
     let cell = sheet.get_collection_by_row(&row);
     for item in cell {
         let value = item.get_cell_value().get_value();
-        if is_filtered == true {
         row_values.push(value.to_string());
-        }
     }
+
     row_values
 }
+
+//fn sort_by_filter(data: Vec<String>, filter = &str) -> Vec<String> {
+//    let mut sorted_data = Vec::new();
+//    for cell in data {
+//        if cell ==
+//    }
+
+//}
 
 fn get_keyword_coord(query: &str, sheet: &Worksheet) -> Vec<coordinates>
 {
@@ -105,13 +118,8 @@ fn prompt_input(prompt: &str) -> io::Result<String> {
 }
 
 fn main() {
-    //let path = std::path::Path::new("./smarts.xlsx");
-    //let mut book = umya_spreadsheet::reader::xlsx::read(path).unwrap();
-    //let sheet  = book.get_sheet_by_name("SMART Data").unwrap();
     println!("Please select a folder containing the excel files");
     let folder = select_folder().ok_or(anyhow::anyhow!("No folder selected")).unwrap();
-//    println!("Searching for xlsx files in: {}", folder.display());
-
     let xlsx_files = find_xlsx_files(&folder).unwrap();
 
     println!("Found xlsx files");
@@ -124,8 +132,6 @@ fn main() {
         _ => String::new(), // Empty string if no filter
     };
 
-    //let keyword = "Wear_Leveling_Count";
-    //let filter = "1.92 TB";
     let mut wtr = Writer::from_path("output.csv").unwrap();
     for file in xlsx_files {
         let book = umya_spreadsheet::reader::xlsx::read(&file).unwrap();
@@ -138,10 +144,9 @@ fn main() {
             if row.len() != 0 {
                 row.insert(0, filename.to_string()); // Add filename as first column
                 empty_row = vec!["".to_string(); row.len()];
-                //empty_row.insert(0, filename.to_string());
             }
             wtr.write_record(&row);
-            println!("Reading from {}", &filename);
+            thread::sleep(Duration::from_millis(10));
         }
         wtr.write_record(&empty_row);
 
