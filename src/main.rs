@@ -10,6 +10,7 @@ use walkdir::WalkDir;
 use anyhow::{Context, Result};
 use std::time::Duration;
 use std::thread;
+use std::collections::BTreeMap;
 
 struct coordinates {
     row: u32,
@@ -62,29 +63,45 @@ fn check_range(merged: &String, selected: &str) -> bool {
     let merged = sheet.get_merge_cells();
     let cell_row = row.to_string();
     let mut is_filtered = false;
+    if filter != "" {
+        is_filtered = true;
+    }
+    //for sorting merged rows
+    let mut rowmap = BTreeMap::new();
+
     //if our filter word is merged
-    for range in merged{
+    for range in merged {
        let mut range_value = range.get_range();
     if check_range(&range_value, &cell_row) == true {
         let mut merge_coord = sheet.map_merged_cell(&*range_value);
         let mut value = sheet.get_value(merge_coord);
-        if value.to_string() == filter && filter != "" {
-        row_values.push(value.to_string());
-        is_filtered = true;
+        let column_num = merge_coord.0;
+        if is_filtered == true {
+            if value == filter {
+                    rowmap.insert(column_num, value.to_string());
+            }
         }
-        else if filter == "" {
-            row_values.push(value.to_string());
+        else{
+            rowmap.insert(column_num, value.to_string());
         }
     }
    }
+
     let cell = sheet.get_collection_by_row(&row);
     for item in cell {
+        let column = item.get_coordinate().get_col_num();
         let value = item.get_cell_value().get_value();
-        row_values.push(value.to_string());
+        rowmap.insert(*column, value.to_string());
     }
 
+    for (key, val) in rowmap.range(0..){
+            row_values.push(val.to_string());
+    }
     row_values
 }
+
+
+
 
 //fn sort_by_filter(data: Vec<String>, filter = &str) -> Vec<String> {
 //    let mut sorted_data = Vec::new();
