@@ -68,19 +68,18 @@ fn check_range(merged: &String, selected: &str) -> bool {
     if check_range(&range_value, &cell_row) == true {
         let mut merge_coord = sheet.map_merged_cell(&*range_value);
         let mut value = sheet.get_value(merge_coord);
-        if value.to_string() == filter && filter != "" {
+        if value.to_string() == filter {
         row_values.push(value.to_string());
         is_filtered = true;
-        }
-        else if filter == "" {
-            row_values.push(value.to_string());
         }
     }
    }
     let cell = sheet.get_collection_by_row(&row);
     for item in cell {
+        if is_filtered == true {
         let value = item.get_cell_value().get_value();
         row_values.push(value.to_string());
+        }
     }
 
     row_values
