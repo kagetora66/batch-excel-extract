@@ -43,11 +43,26 @@ fn find_xlsx_files(folder: &Path) -> Result<Vec<PathBuf>> {
 
 //checks if our row is in the same range as merged cells
 fn check_range(merged: &String, selected: &str) -> bool {
-    let re = Regex::new(r"^[A-Za-z](\d+):[A-Za-z](\d+)$").unwrap();
-    let caps = re.captures(merged);
+    let re = Regex::new(r"^[A-Za-z](\d{1,3}):[A-Za-z](\d{1,3})$").unwrap();
+    let caps = match re.captures(merged) {
+        Some(c) => c,
+        None => {
+            return false
+        }
+    };
 
-    let num2 = caps.as_ref().expect("error").get(2).expect("no group 2").as_str().parse::<u32>().ok().unwrap();
-    let num1 = caps.as_ref().expect("error").get(1).expect("no group 1").as_str().parse::<u32>().ok().unwrap();
+    let num1 = caps.get(1)
+    .unwrap_or_else(|| panic!("No group 1 in string '{}'", merged))
+    .as_str()
+    .parse::<u32>()
+    .unwrap_or_else(|_| panic!("Failed to parse group 1 in string '{}'", merged));
+
+    let num2 = caps.get(2)
+    .unwrap_or_else(|| panic!("No group 2 in string '{}'", merged))
+    .as_str()
+    .parse::<u32>()
+    .unwrap_or_else(|_| panic!("Failed to parse group 2 in string '{}'", merged));
+
     let selected_row = selected.parse().unwrap();
     if num1 < selected_row && selected_row < num2 {
         return true
@@ -84,14 +99,6 @@ fn check_range(merged: &String, selected: &str) -> bool {
 
     row_values
 }
-
-//fn sort_by_filter(data: Vec<String>, filter = &str) -> Vec<String> {
-//    let mut sorted_data = Vec::new();
-//    for cell in data {
-//        if cell ==
-//    }
-
-//}
 
 fn get_keyword_coord(query: &str, sheet: &Worksheet) -> Vec<coordinates>
 {
